@@ -21,8 +21,10 @@ python verify_dataset.py
 # 4. Run Part 1: Estimation, inference, and regression baseline
 python part1.py
 
-# (Parts 2 to 4 will be run as implemented)
-# python part2.py
+# 5. Run Part 2: Classification, threshold analysis, and KNN
+python part2.py
+
+# (Parts 3 to 4 will be run as implemented)
 # python part3.py
 # python part4.py
 ```
@@ -47,7 +49,24 @@ python part1.py
 
 ## Part 2 findings
 
-*To be completed in Phase 3 (Part 2).*
+- **R2.1 (Learning-Rate Sensitivity):** Ordering the three Task 2.3 training losses after 200 epochs from lowest to highest yields:
+  $$\text{loss\_epoch\_200\_eta\_1.0 } (0.3703) < \text{loss\_epoch\_200\_eta\_0.1 } (0.3776) < \text{loss\_epoch\_200\_eta\_0.01 } (0.5091)$$
+  This demonstrates that an overly small learning rate ($\eta = 0.01$) progresses sluggishly and remains underfitted far from the minimum after 200 iterations, whereas on standardized features with a smooth convex loss surface, a large learning rate ($\eta = 1.0$) rapidly descends the gradient directly to the optimal cost basin without instability or divergence.
+
+- **R2.2 (Predictor Weights & Odds Ratio Interpretation):** The three predictors with the largest absolute weights in the logistic regression model are:
+  1. $X_3$ (`discount_order_share`): `weight_X3 = 0.9013` ($|w| = 0.9013$), `odds_ratio_X3 = 2.4629`
+  2. $X_1$ (`customer_tenure_months`): `weight_X1 = -0.5554` ($|w| = 0.5554$), `odds_ratio_X1 = 0.5739`
+  3. $X_2$ (`complaint_count_90d`): `weight_X2 = 0.5505` ($|w| = 0.5505$), `odds_ratio_X2 = 1.7341`
+  *Domain interpretation of the largest odds ratio ($X_3$):* Holding all other variables constant, each one standard deviation increase in a customer's discount order share (~22.8 percentage points) multiplies the odds of churn by **2.4629** (a ~146% increase in churn odds), identifying deal-sensitive discount seekers as the highest-risk segment for defection once promotional incentives subside. Conversely, higher customer tenure protects against churn (`odds_ratio_X1 = 0.5739`, reducing odds by ~42.6%), while complaints significantly accelerate churn (`odds_ratio_X2 = 1.7341`, increasing odds by ~73.4%).
+
+- **R2.3 (Accuracy Trap & Threshold Adjustment):** A naive baseline that blindly predicts zero churn for all customers achieves `blind_accuracy = 0.7875` (78.75%), which sits remarkably close to the default logistic regression accuracy `tau_0.5_accuracy = 0.8042` (80.42%). Accuracy alone is deeply misleading because active customers dominate the base (~78.75%); a model that simply ignores all churners scores nearly 79% accuracy while delivering zero business utility, and the $\tau = 0.5$ model misses more than half of all churners (`recall = 0.4706`, leaving 27 of 51 churners undetected). Lowering the decision threshold to $\tau = 0.3$ substantially elevates recall from **47.06% to 74.51%** (catching 38 of 51 churners), while precision adjusts moderately from **54.55% to 46.34%** as false alarms increase from 20 to 44.
+
+- **R2.4 (Logistic Regression vs. KNN Benchmark):** Comparing the logistic regression model at $\tau = 0.3$ against the cross-validated $K$-Nearest Neighbours classifier ($K = 5$):
+  - **Logistic Regression ($\tau = 0.3$):** `f1 = 0.5714`, `recall = 0.7451`
+  - **KNN ($K = 5$):** `knn_f1 = 0.3696`, `knn_recall = 0.3333`
+  The logistic model vastly surpasses KNN, delivering more than double the recall (74.51% vs 33.33%) and a markedly superior F1 score (0.5714 vs 0.3696). Because standard Euclidean distance weights all seven dimensions equally without recognizing directional feature relationships, majority voting in KNN breaks down under class imbalance and misses two-thirds of at-risk customers.
+
+- **R2.5 (Financial Cost Optimization & Deployment Decision):** We recommend deploying the **logistic regression model calibrated to the financially optimal threshold $\tau = 0.15$**. On the unseen test cohort, this operating point yields `cost_test_at_tau = 6050` INR, saving nearly 50% compared to the standard threshold cost `cost_test_at_0.5 = 11800` INR and slashing losses by over 70% compared to flagging nobody `cost_test_flag_nobody = 20400` INR. The alert threshold was selected strictly on training data to prevent optimistic leakage and guarantee an honest, unbiased estimation of marketing ROI on future customer behavior.
 
 ## Part 3 findings
 
