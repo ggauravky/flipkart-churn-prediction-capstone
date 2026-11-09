@@ -190,3 +190,45 @@ def compute_financial_cost(y_true, y_prob, tau, cost_fp=50, cost_fn=400):
     cost = cost_fp * fp + cost_fn * fn
     return cost, fp, fn
 
+
+def find_best_knn_k(X_train_std, y_train, odd_ks=None):
+    """Select the optimal K for KNN via 5-fold cross-validation on training rows.
+
+    The fold of a training row is its 0-based position in the training set
+    (in file order) modulo 5. Scores are mean F1 over the 5 folds.
+    Ties are broken by choosing the smaller K.
+    """
+    if odd_ks is None:
+        odd_ks = list(range(1, 23, 2))  # 1, 3, 5, ..., 21
+
+    n_train = len(y_train)
+    folds = np.array([i % 5 for i in range(n_train)])
+    best_k = None
+    best_mean_f1 = -1.0
+    cv_records = []
+
+    for K in odd_ks:
+        fold_f1_scores = []
+        for f in range(5):
+            val_mask = (folds == f)
+            ref_mask = ~val_mask
+
+            ref_X = X_train_std[ref_mask]
+            ref_y = y_train[ref_mask]
+            val_X = X_train_std[val_mask]
+            val_y = y_train[val_mask]
+
+            val_preds, _ = predict_knn(ref_X, ref_y, val_X, K)
+            val_m = evaluate_confusion_metrics(val_y, val_preds)
+            fold_f1_scores.append(val_m["f1"])
+
+        mean_f1 = float(np.mean(fold_f1_scores))
+        cv_records.append((K, mean_f1))
+
+        if mean_f1 > best_mean_f1:
+            best_mean_f1 = mean_f1
+            best_k = K
+
+    return best_k, cv_records
+
+

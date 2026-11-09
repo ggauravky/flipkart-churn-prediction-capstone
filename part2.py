@@ -126,7 +126,7 @@ def run_part2():
         p_labels = (test_probs >= tau_val).astype(int)
         m = part2_models.evaluate_confusion_metrics(y_test, p_labels)
         thresholds_rows.append([
-            f"{tau_val:.1f}",
+            f"{tau_val:.4f}",
             m["tp"],
             m["fp"],
             m["tn"],
@@ -146,34 +146,8 @@ def run_part2():
     # -------------------------------------------------------------------------
     # Task 2.7: KNN with 5-fold cross-validation on 560 training rows
     # -------------------------------------------------------------------------
-    folds = np.array([i % 5 for i in range(train_rows)])
-    odd_ks = list(range(1, 23, 2))  # 1, 3, 5, ..., 21
-    knn_cv_rows = []
-    best_k = None
-    best_mean_f1 = -1.0
-
-    for K in odd_ks:
-        fold_f1_scores = []
-        for f in range(5):
-            val_mask = (folds == f)
-            ref_mask = ~val_mask
-
-            ref_X = X_train_std[ref_mask]
-            ref_y = y_train[ref_mask]
-            val_X = X_train_std[val_mask]
-            val_y = y_train[val_mask]
-
-            val_preds, _ = part2_models.predict_knn(ref_X, ref_y, val_X, K)
-            val_m = part2_models.evaluate_confusion_metrics(val_y, val_preds)
-            fold_f1_scores.append(val_m["f1"])
-
-        mean_f1 = float(np.mean(fold_f1_scores))
-        knn_cv_rows.append([K, f"{mean_f1:.4f}"])
-
-        # Best K selection (ties broken by smaller K)
-        if mean_f1 > best_mean_f1:
-            best_mean_f1 = mean_f1
-            best_k = K
+    best_k, cv_records = part2_models.find_best_knn_k(X_train_std, y_train)
+    knn_cv_rows = [[K, f"{mean_f1:.4f}"] for K, mean_f1 in cv_records]
 
     knn_cv_csv_path = os.path.join("outputs", "part2_knn_cv.csv")
     with open(knn_cv_csv_path, "w", newline="", encoding="utf-8") as f:
@@ -224,7 +198,7 @@ def run_part2():
     # Write outputs/part2_results.txt
     # -------------------------------------------------------------------------
     results_path = os.path.join("outputs", "part2_results.txt")
-    with open(results_path, "w", encoding="utf-8") as f:
+    with open(results_path, "w", newline="\n", encoding="utf-8") as f:
         for key, val in results.items():
             f.write(f"{key} = {format_value(val)}\n")
 

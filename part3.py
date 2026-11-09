@@ -37,7 +37,7 @@ def format_value(val):
     return str(val)
 
 
-def run_kmeans(X_std, K, max_iter=1000):
+def run_kmeans(X_std, K):
     """Run K-means with exact pinned rules:
     - Starting centroids: rows at indices 0, floor(800/K), 2*floor(800/K), ...
     - Squared Euclidean distance assignment with lower-index tie-breaking.
@@ -50,7 +50,7 @@ def run_kmeans(X_std, K, max_iter=1000):
     assignments = np.full(n_samples, -1)
 
     passes = 0
-    while passes < max_iter:
+    while True:
         passes += 1
         # dists shape: (n_samples, K)
         dists = np.sum((X_std[:, np.newaxis, :] - centroids[np.newaxis, :, :]) ** 2, axis=2)
@@ -344,7 +344,7 @@ def run_part3():
     # Write outputs/part3_results.txt
     # =========================================================================
     results_path = os.path.join("outputs", "part3_results.txt")
-    with open(results_path, "w", encoding="utf-8") as f:
+    with open(results_path, "w", newline="\n", encoding="utf-8") as f:
         for key, val in results.items():
             f.write(f"{key} = {format_value(val)}\n")
 
