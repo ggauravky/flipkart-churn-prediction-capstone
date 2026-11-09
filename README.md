@@ -24,8 +24,10 @@ python part1.py
 # 5. Run Part 2: Classification, threshold analysis, and KNN
 python part2.py
 
-# (Parts 3 to 4 will be run as implemented)
-# python part3.py
+# 6. Run Part 3: Customer segmentation (K-means, Hierarchical, PCA)
+python part3.py
+
+# (Part 4 will be run as implemented)
 # python part4.py
 ```
 
@@ -70,7 +72,34 @@ python part2.py
 
 ## Part 3 findings
 
-*To be completed in Phase 4 (Part 3).*
+- **R3.1 (WCSS Drops & Elbow Selection):** The four successive within-cluster sum of squares (WCSS) drops across $K \in \{2, 3, 4, 5, 6\}$ are:
+  - $\text{WCSS}(2) - \text{WCSS}(3) = 2262.6753 - 1602.8471 = \mathbf{659.8282}$
+  - $\text{WCSS}(3) - \text{WCSS}(4) = 1602.8471 - 1494.7732 = \mathbf{108.0739}$
+  - $\text{WCSS}(4) - \text{WCSS}(5) = 1494.7732 - 1323.7157 = \mathbf{171.0575}$
+  - $\text{WCSS}(5) - \text{WCSS}(6) = 1323.7157 - 1278.1691 = \mathbf{45.5466}$
+  The task's mathematical elbow criterion selects **`elbow_k = 3`** as the smallest $K \in \{3, 4, 5\}$ satisfying $\text{WCSS}(K) - \text{WCSS}(K + 1) < 0.5 \times (\text{WCSS}(K - 1) - \text{WCSS}(K))$, since $108.0739 < 0.5 \times 659.8282 = 329.9141$. While the successive drops do not shrink monotonically (the drop temporarily rebounds from $108.0739$ at $K=3 \to 4$ to $171.0575$ at $K=4 \to 5$ because the pinned starting rows produce a strictly reproducible benchmark rather than a guaranteed global optimum for every $K$), $K = 3$ represents the primary structural elbow where the rate of variance explanation experiences its steepest transition.
+
+- **R3.2 (Segment Profiles, Business Names & Recommended Actions):** Based on `part3_segments.csv` (clusters ordered by ascending mean discount share $X_3$):
+  1. **Segment A (Size 322): *Premium Loyalists***
+     - *Profile:* Longest tenure (`mean_X1 = 47.5028` months), lowest complaint frequency (`mean_X2 = 1.9503`), lowest discount reliance (`mean_X3 = 0.2250`), steady basket sizes (`mean_X4 = 12.5301`), highest loyalty score (`mean_X5 = 62.1584`), and a negligible churn rate of `outcome_rate = 0.0186` (1.86%).
+     - *Concrete Action:* Transition to automated subscription refills and invite into exclusive VIP early-access sales tiers; avoid margin-diluting discount promotions since these customers willingly purchase at standard list price.
+  2. **Segment B (Size 255): *High-Value Friction-Sensitive Shoppers***
+     - *Profile:* Intermediate tenure (`mean_X1 = 28.6071` months), highest complaint count (`mean_X2 = 6.0706`), moderate discount use (`mean_X3 = 0.4534`), highest historical order value (`mean_X4 = 28.7192`), strong loyalty score (`mean_X5 = 55.0082`), substantial churn rate of `outcome_rate = 0.2353` (23.53%), and the highest current order value by far (`mean_value = 17.1248` hundreds of INR, ~₹1,712).
+     - *Concrete Action:* Implement white-glove, dedicated customer-care routing with automated escalation and rapid compensation for any delivery dispute or transit friction, protecting Flipkart's most lucrative customer segment from avoidable defection.
+  3. **Segment C (Size 223): *Bargain-Focused / Opportunistic Deal Seekers***
+     - *Profile:* Shortest tenure (`mean_X1 = 14.3892` months), moderate complaints (`mean_X2 = 4.2287`), extreme discount addiction (`mean_X3 = 0.7118`), modest basket sizes (`mean_X4 = 16.5099`), lowest loyalty score (`mean_X5 = 38.5215`), and average current order value of `mean_value = 7.2883`.
+     - *Highest Churn Rate:* **Segment C exhibits the highest churn rate at `outcome_rate = 0.4664` (46.64%)**, indicating that nearly half of this group defects once subsidies end.
+     - *Concrete Action:* Deploy dynamic, margin-capped minimum-spend coupons (e.g., "₹150 off on orders above ₹1,200") to condition regular shopping frequency while safeguarding unit contribution margins.
+
+- **R3.3 (Hierarchical Linkage Comparison & Dendrogram Cuts):**
+  - **Single Linkage (`single_clusters_at_cut = 4`):** The largest merge height gap occurs between merge 2 ($1.4000$) and merge 3 ($2.8000$) with a gap of $1.4000$. Cutting here produces **4 clusters**: `{E1}`, `{E4}`, `{E5}`, and `{E2+E3+E6}`.
+  - **Complete Linkage (`complete_clusters_at_cut = 2`):** The largest merge height gap occurs between merge 4 ($2.9000$) and merge 5 ($7.9000$) with a massive gap of $5.0000$. Cutting here produces **2 clusters**: `{E1+E4+E5}` and `{E2+E3+E6}`.
+  - *Why they disagree:* Single linkage computes proximity as the minimum distance between any single pair of members; due to "chaining", the presence of a single moderate intermediate connection between E5 and E6 (distance $3.4$) allows all cohorts to merge at very low height (final height $3.4000$), obscuring the deeper macro split and falsely magnifying the early gap between heights $1.4$ and $2.8$. In contrast, complete linkage evaluates cluster compactness by requiring the maximum pairwise distance between all members to remain small; the large dissimilarity between opposing cohorts (e.g., distance between E1 and E2 is $7.9$) creates an enormous final jump from $2.9$ to $7.9$, correctly identifying two coherent, isolated macro clusters `{E1, E4, E5}` and `{E2, E3, E6}`.
+
+- **R3.4 (Principal Component Analysis Interpretation):**
+  - *Drivers of PC1:* The first principal component accounts for over half the total variance (`explained_ratio_1 = 0.5227`, 52.27%) and acts as an opposing polarity index between customer loyalty and platform friction. PC1 is driven positively by customer tenure (`pc1_loading_X1 = 0.5317`) and loyalty score (`pc1_loading_X5 = 0.4418`), and driven negatively by discount order share (`pc1_loading_X3 = -0.5187`) and complaint counts (`pc1_loading_X2 = -0.4100`).
+  - *Variance Retention:* Exactly **3 components** (`components_for_80pct = 3`) are required to preserve at least 80% of total information, capturing **86.16%** cumulative variance (`cumulative_ratio_3 = 0.8616`).
+  - *Segment PC1 Scores:* The mean first-component projections across the segments are `mean_pc1_segment_A = 1.7773`, `mean_pc1_segment_B = -0.7831`, and `mean_pc1_segment_C = -1.6709`. This ordering cleanly separates the customer clusters along the principal loyalty axis, confirming that Segment A represents established, low-friction loyalists on the positive spectrum, Segment B reflects transitional high-friction accounts, and Segment C represents promo-dependent, high-churn shoppers on the far negative spectrum.
 
 ## Part 4 findings
 
