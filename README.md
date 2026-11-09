@@ -27,8 +27,8 @@ python part2.py
 # 6. Run Part 3: Customer segmentation (K-means, Hierarchical, PCA)
 python part3.py
 
-# (Part 4 will be run as implemented)
-# python part4.py
+# 7. Run Part 4: Model choice, boosting, and neural architecture sizing
+python part4.py
 ```
 
 ## Part 1 findings
@@ -103,13 +103,53 @@ python part3.py
 
 ## Part 4 findings
 
-*To be completed in Phase 5 (Part 4).*
+- **R4.1 (Decision Tree Splits & Stopping Rules):** Among the four candidate questions on the 560 training records, candidate split **S4 ($X_1 \le 24$ months customer tenure)** is the best split, achieving the highest information gain (`info_gain = 0.1252`) and highest Gini gain (`gini_gain = 0.0606`). It separates customers into an acute high-churn newer group (churn rate $45.74\%$, 86 of 188) versus a resilient tenured group (churn rate $8.87\%$, 33 of 372). A decision tree grown until every terminal leaf is completely pure overfits severely because it memorizes idiosyncratic training noise, sample-specific anomalies, and stochastic variance rather than underlying population patterns, resulting in poor generalizability on unseen data. One standard stopping rule that prevents recursive overgrowth is enforcing a maximum tree depth (`max_depth`) or setting a minimum sample count threshold per leaf (`min_samples_leaf`).
+
+- **R4.2 (Model Deployment Recommendation & Ensembling Analysis):** Among the five structured models evaluated on the 240 out-of-sample test records in `part4_voting.csv`, we would ship the **standalone Logistic Regression model**, which delivers the superior balance with `f1 = 0.5714` and `recall = 0.7451` (successfully flagging 38 of 51 test churners). Combining models failed to improve performance: hard voting reduced both metrics to `f1 = 0.5344` and `recall = 0.6863`, while soft voting yielded `f1 = 0.5507` and `recall = 0.7451`. Multi-model combinations degraded predictive power because the ensemble was dragged down by the poorly calibrated K-Nearest Neighbours classifier (`knn_f1 = 0.3696`, `knn_recall = 0.3333`), demonstrating that ensembling only outperforms single models when all component base learners provide high-quality, mutually complementary decision boundaries.
+
+- **R4.3 (AdaBoost Reweighting & Hypothesis Trust):** Following round 1 normalization, the two misclassified points (points 3 and 7) each received an updated sample weight of $0.2500$, giving them a combined total weight of **`0.5000`** (exactly half the entire weight mass of the eight-point training set). Round 2 places substantially higher trust in hypothesis $h_2$ ($\alpha_2 = 0.8047$) compared to hypothesis $h_1$ ($\alpha_1 = 0.5493$) because $h_2$ achieves a lower weighted error on this reweighted sample ($\varepsilon_2 = 0.1667$ versus $\varepsilon_1 = 0.2500$), correctly resolving the difficult instances penalized by the previous round.
+
+- **R4.4 (Neural Network Architecture Sizing & Deep Learning Principles):**
+  - **Model A Option 2 (CNN) Layer-by-Layer Architecture Table:**
+    | Layer Name | Output Spatial Shape ($H \times W \times D$) | Parameter Count | Calculation Details |
+    |---|---|---|---|
+    | `cnn_conv1` (Conv $5\times 5$, 6 filters, pad 2, stride 1) | $28 \times 28 \times 6$ | 156 | $(5 \times 5 \times 1 + 1) \times 6 = 156$ |
+    | Activation (ReLU) + Max-Pool ($2\times 2$, stride 2) | $14 \times 14 \times 6$ | 0 | Parameter-free spatial reduction |
+    | `cnn_conv2` (Conv $5\times 5$, 16 filters, pad 0, stride 1) | $10 \times 10 \times 16$ | 2,416 | $(5 \times 5 \times 6 + 1) \times 16 = 2,416$ |
+    | Activation (ReLU) + Max-Pool ($2\times 2$, stride 2) | $5 \times 5 \times 16$ | 0 | Parameter-free spatial reduction |
+    | Flatten | 400 | 0 | $5 \times 5 \times 16 = 400$ values |
+    | `cnn_dense1` (Dense 32 + ReLU) | 32 | 12,832 | $400 \times 32 + 32 = 12,832$ |
+    | `cnn_dense2` (Dense 10 Output) | 10 | 330 | $32 \times 10 + 10 = 330$ |
+    | **Total CNN Parameters (`cnn_total`)** | — | **15,734** | Sum across all 4 parameterized layers |
+  - **Model B (RNN) Weight Dimensions & Sequence Invariance:**
+    The transition and projection weight matrices have dimensions:
+    - $W_{xh}$: shape $128 \times 64$ (8,192 parameters)
+    - $W_{hh}$: shape $128 \times 128$ (16,384 parameters)
+    - $W_{hy}$: shape $16 \times 128$ (2,048 parameters)
+    - Total parameters `rnn_total = 26768` (including 128 bias terms $b_h$ and 16 bias terms $b_y$).
+    The total parameter count `rnn_total` does not grow when input review text sequences become longer because recurrent architectures share the exact same weight matrices ($W_{xh}, W_{hh}, W_{hy}$) across every recurrence step regardless of sequence length.
+  - **Recommended Activations and Loss for 10 Classes:**
+    For hidden layers, use **ReLU** (Rectified Linear Unit) for fast, non-saturating gradient propagation; for the 10-class output layer, use **Softmax** paired with **Categorical Cross-Entropy Loss** to produce normalized posterior class probabilities.
+  - **Vanishing Gradients and Skip Connections:**
+    In very deep plain neural networks, repeated backpropagation multiplications by fractional weight matrices and activation derivatives cause gradient signals to diminish exponentially as they travel backward, causing early layers to stall and stop learning. A residual skip connection ($x + F(x)$) resolves this by establishing an uninterrupted identity shortcut that allows gradient signals to flow directly from later layers back to initial layers without attenuation.
 
 ## Model-choice memo
 
-*To be completed in Phase 5 (Part 4).*
+To: Head of Customer Retention, Flipkart  
+From: Decision Intelligence Analytics Team  
+Subject: Production Model Recommendation for Churn Prevention  
+
+We recommend deploying the standalone Logistic Regression model for production retention intervention. In our head-to-head out-of-sample evaluation across 240 test customers, Logistic Regression achieved the highest overall balance of predictive accuracy, with an F1 score of 0.5714 (outputs/part4_voting.csv) and a recall of 0.7451, capturing 38 out of 51 at-risk churners. Multi-model combinations failed to improve performance: hard voting reduced F1 to 0.5344 and recall to 0.6863, dragged down by K-Nearest Neighbours (F1 of 0.3696).
+
+To maximize financial return, we recommend deploying this model at the cost-optimized decision threshold of tau = 0.1500 (outputs/part2_results.txt). Operating at tau = 0.1500 yields an operational test cost of INR 6,050 (outputs/part2_results.txt), slashing marketing losses by 48.7% compared to the standard tau = 0.5000 comparator cost of INR 11,800, and saving over 70% compared to the unmanaged baseline of flagging nobody (INR 20,400).
+
+A key operational risk of this evidence is that our evaluation relies on a single synthetic 70/30 split containing only 51 positive test churners, meaning real-world seasonality and holiday purchasing shifts may alter precision.
+
+Neither Model A (image sorting) nor Model B (review topic modeling) is worth building before this structured model is deployed in production, as tabular transaction signals provide immediate, high-margin retention lift with negligible compute overhead while deep learning pipelines require extensive annotation and infrastructure without directly preventing customer defection.
 
 ## Limitations
 
-*To be completed upon concluding the evaluation.*
+1. **Synthetic Data Constraint:** The dataset was generated from a synthetic parametric process (`generate_data.py`), which lacks the complex real-world anomalies, catalog shifts, missing fields, regional payment failures, and macroeconomic shocks encountered in live Flipkart production environments.
+2. **Single 70/30 Split and Sample Imbalance:** Model validation relies upon a single fixed partition yielding only 51 positive churn events in the hold-out test set; performance estimates carry finite-sample uncertainty, and robust deployment requires longitudinal backtesting across multiple successive sales quarters.
+3. **Static Cost Assumptions:** The financial optimization assumes uniform, static operational costs (INR 50 per false positive coupon, INR 400 per false negative lost margin) across the entire customer base, whereas true customer lifetime value (LTV) and promotional elasticity vary substantially between low-spend bargain hunters and high-value loyalists.
 
