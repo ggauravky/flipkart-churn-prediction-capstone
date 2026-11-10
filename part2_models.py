@@ -76,7 +76,13 @@ def get_stratified_split():
 
 def sigmoid(z):
     """Numerically stable sigmoid activation function."""
-    return 1.0 / (1.0 + np.exp(-z))
+    z_arr = np.asarray(z, dtype=np.float64)
+    safe = z_arr >= -500.0
+    z_safe = np.where(safe, z_arr, 0.0)
+    z_neg = np.where(safe, 0.0, z_arr)
+    exp_neg = np.exp(z_neg)
+    res = np.where(safe, 1.0 / (1.0 + np.exp(-z_safe)), exp_neg / (1.0 + exp_neg))
+    return float(res.item()) if np.ndim(z) == 0 else res
 
 
 def bce_loss(y_true, y_prob):
