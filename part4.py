@@ -60,17 +60,24 @@ def run_part4():
     results["root_entropy"] = root_entropy
     results["root_gini"] = root_gini
 
-    # Candidate splits on training rows in original units:
+    # Candidate splits on features in original units:
     # S1: X6 == 1 (cod_flag)
     # S2: X7 == 1 (plus_member_flag)
     # S3: X3 > 0.5 (discount_order_share)
     # S4: X1 <= 24 (customer_tenure_months)
-    splits_dict = {
-        "S1": X_train[:, 5] == 1,
-        "S2": X_train[:, 6] == 1,
-        "S3": X_train[:, 2] > 0.5,
-        "S4": X_train[:, 0] <= 24
-    }
+    def apply_split(split_name, X):
+        if split_name == "S1":
+            return X[:, 5] == 1
+        elif split_name == "S2":
+            return X[:, 6] == 1
+        elif split_name == "S3":
+            return X[:, 2] > 0.5
+        elif split_name == "S4":
+            return X[:, 0] <= 24
+        else:
+            raise ValueError(f"Unknown split: {split_name}")
+
+    splits_dict = {s_id: apply_split(s_id, X_train) for s_id in ["S1", "S2", "S3", "S4"]}
 
     def evaluate_split(yes_mask, y):
         n = len(y)
@@ -131,10 +138,10 @@ def run_part4():
     # =========================================================================
     # Task 4.2: Decision stump & voting combinations
     # =========================================================================
-    best_split_name = best_ig[1]  # S4: X1 <= 24
-    s4_yes_train = splits_dict[best_split_name]
-    stump_rate_yes = float(np.sum(y_train[s4_yes_train] == 1) / np.sum(s4_yes_train))
-    stump_rate_no = float(np.sum(y_train[~s4_yes_train] == 1) / np.sum(~s4_yes_train))
+    best_split_name = best_ig[1]
+    stump_yes_train = apply_split(best_split_name, X_train)
+    stump_rate_yes = float(np.sum(y_train[stump_yes_train] == 1) / np.sum(stump_yes_train))
+    stump_rate_no = float(np.sum(y_train[~stump_yes_train] == 1) / np.sum(~stump_yes_train))
 
     results["stump_rate_yes"] = stump_rate_yes
     results["stump_rate_no"] = stump_rate_no
@@ -144,13 +151,13 @@ def run_part4():
     prob_logistic = part2_models.predict_logistic_prob(X_test_std, w_log, b_log)
     pred_logistic = (prob_logistic >= 0.3).astype(int)
 
-    # 2. KNN model (K = 5)
-    best_k = 5
+    # 2. KNN model (reusing best K selected in Part 2)
+    best_k, _ = part2_models.find_best_knn_k(X_train_std, y_train)
     pred_knn, prob_knn = part2_models.predict_knn(X_train_std, y_train, X_test_std, best_k)
 
     # 3. Decision stump on test set
-    s4_yes_test = X_test[:, 0] <= 24
-    prob_stump = np.where(s4_yes_test, stump_rate_yes, stump_rate_no)
+    stump_yes_test = apply_split(best_split_name, X_test)
+    prob_stump = np.where(stump_yes_test, stump_rate_yes, stump_rate_no)
     pred_stump = (prob_stump >= 0.3).astype(int)
 
     # 4. Hard vote: positive when at least 2 of 3 predict positive
@@ -310,7 +317,7 @@ def run_part4():
     # Write outputs/part4_results.txt
     # =========================================================================
     results_path = os.path.join("outputs", "part4_results.txt")
-    with open(results_path, "w", encoding="utf-8") as f:
+    with open(results_path, "w", newline="\n", encoding="utf-8") as f:
         for key, val in results.items():
             f.write(f"{key} = {format_value(val)}\n")
 

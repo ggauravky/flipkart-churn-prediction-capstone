@@ -258,7 +258,7 @@ def run_part1():
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, "part1_results.txt")
 
-    with open(output_path, "w", encoding="utf-8") as f:
+    with open(output_path, "w", newline="\n", encoding="utf-8") as f:
         for key, val in results.items():
             f.write(f"{key} = {format_value(val)}\n")
 
