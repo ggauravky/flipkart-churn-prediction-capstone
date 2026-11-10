@@ -21,16 +21,18 @@ import data_loader
 
 def format_value(val):
     """Format a value according to the capstone specification:
-    - 4 decimal places for floating-point numbers
+    - booleans as yes / no (checked before int since bool subclasses int)
     - integers as plain integers
-    - booleans / strings as given
+    - 4 decimal places for floating-point numbers
+    - strings as given
     """
-    if isinstance(val, (int, np.integer)):
+    if isinstance(val, (bool, np.bool_)):
+        return "yes" if val else "no"
+    elif isinstance(val, (int, np.integer)):
         return str(val)
     elif isinstance(val, (float, np.floating)):
-        return f"{val:.4f}"
-    elif isinstance(val, bool):
-        return "yes" if val else "no"
+        formatted = f"{val:.4f}"
+        return "0.0000" if formatted == "-0.0000" else formatted
     return str(val)
 
 

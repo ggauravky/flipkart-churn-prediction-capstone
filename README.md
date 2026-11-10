@@ -6,7 +6,7 @@ Capstone Project for IIT Mandi × Masai Minor in Artificial Intelligence & Data 
 
 ## How to run
 
-**Prerequisites:** Python 3.10+ (tested and verified on Python 3.12.10 with NumPy 2.5.4).
+**Prerequisites:** Python 3.12+ (consistent with `numpy==2.5.4`, which requires Python `>=3.12`; verified on Python 3.12.10 with NumPy 2.5.4).
 
 To run this project from a clean clone, execute the following commands in order:
 
@@ -41,7 +41,7 @@ python part4.py
 
 - **R1.3 (Convergence of Gradient Descent):** Batch gradient descent converged exactly to the analytical least-squares regression line, yielding `gd_slope_gap = 0.0000` (far below the 0.001 threshold) with final `gd_slope = 0.6701` and `gd_intercept = -3.6598`. Gradient descent reached the closed-form line because the mean squared error loss surface of linear regression is strictly convex with a single global optimum, and standardizing $X_4$ ensured well-conditioned, spherical contours that permitted the fixed learning rate $\eta = 0.1$ to progress directly to the analytical minimum without oscillation.
 
-- **R1.4 (Residual Funnel & Log Transformation):** The raw linear regression model displays a severe funnel effect (heteroskedasticity), with `resid_sd_ratio_raw = 3.7525`. The residual standard deviation in the upper half of fitted values (`resid_sd_upper_raw = 8.6891`) is nearly 3.75 times higher than in the lower half (`resid_sd_lower_raw = 2.3155`), violating the constant-variance assumption of ordinary least squares. In contrast, the log-log regression model $\ln(\text{value})$ on $\ln(X_4)$ yields `resid_sd_ratio_log = 1.0396`, completely removing the funnel effect and restoring homoskedastic error dispersion across the full range of predicted order values.
+- **R1.4 (Residual Funnel & Log Transformation):** The raw linear regression model exhibits a pronounced funnel pattern (heteroskedasticity), with `resid_sd_ratio_raw = 3.7525`: the residual sample standard deviation in the upper half of fitted values (`resid_sd_upper_raw = 8.6891`) is approximately 3.75 times that of the lower half (`resid_sd_lower_raw = 2.3155`), which is inconsistent with the constant-variance assumption of ordinary least squares. After transforming both variables to logarithms, the log-log regression of $\ln(\text{value})$ on $\ln(X_4)$ yields `resid_sd_ratio_log = 1.0396` (`resid_sd_upper_log = 0.5369` vs. `resid_sd_lower_log = 0.5165`), substantially reducing the upper-to-lower residual spread ratio to near parity and effectively removing the median-split funnel pattern observed on the raw scale.
 
 - **R1.5 (Multiple Regression Predictors & Model Comparison):** In the multiple regression of $\ln(\text{value})$ on eight design columns, the predictors whose coefficients have an absolute value strictly above $0.05$ (excluding the intercept `mr_beta_0 = -1.8613`) are:
   1. $\ln(X_4)$ (`avg_order_value_inr_hundreds` in log space): `mr_beta_1 = 1.1576`
@@ -70,7 +70,7 @@ python part4.py
   - **KNN ($K = 5$):** `knn_f1 = 0.3696`, `knn_recall = 0.3333`
   The logistic model vastly surpasses KNN, delivering more than double the recall (74.51% vs 33.33%) and a markedly superior F1 score (0.5714 vs 0.3696). Because standard Euclidean distance weights all seven dimensions equally without recognizing directional feature relationships, majority voting in KNN breaks down under class imbalance and misses two-thirds of at-risk customers.
 
-- **R2.5 (Financial Cost Optimization & Deployment Decision):** For commercial deployment, we recommend operating the **logistic regression model at the financially optimal alert threshold $\tau = 0.1500$** (selected strictly on training data where total cost is minimized at INR 13,850). On the unseen hold-out test set (240 records, 51 positive churners), operating at $\tau = 0.1500$ yields:
+- **R2.5 (Financial Cost Optimization & Deployment Decision):** For commercial deployment, we recommend operating the **logistic regression model at the financially optimal alert threshold $\tau = 0.1500$** (selected strictly on the 560 training rows where total cost is minimized at INR 12,150, `cost_train_at_tau = 12150`). On the unseen hold-out test set (240 records, 51 positive churners), operating at $\tau = 0.1500$ yields:
   - Confusion counts: $TP = 45$, $FP = 73$, $TN = 116$, $FN = 6$
   - Test metrics: `recall = 0.8824` (88.24% of churners captured), `precision = 0.3814`, `f1 = 0.5325`
   - Financial test cost: `cost_test_at_tau = 6050` INR ($50 \times 73 + 400 \times 6 = 3650 + 2400$)
@@ -87,15 +87,15 @@ python part4.py
 
 - **R3.2 (Segment Profiles, Business Names & Recommended Actions):** Based on `part3_segments.csv` (clusters ordered by ascending mean discount share $X_3$):
   1. **Segment A (Size 322): *Core Loyalists / Low-Friction Regular Shoppers***
-     - *Profile:* Longest customer tenure (`mean_X1 = 47.5028` months), lowest complaint frequency (`mean_X2 = 1.9503`), lowest discount reliance (`mean_X3 = 0.2250`), steady but modest basket sizes (`mean_X4 = 12.5301`), modest current average order value (`mean_value = 3.5976` hundreds of INR, ~₹360), highest loyalty score (`mean_X5 = 62.1584`), and a negligible churn rate of `outcome_rate = 0.0186` (1.86%).
-     - *Concrete Action:* Transition to automated subscription refills and scheduled re-order reminders; avoid costly margin-diluting discount subsidies since these accounts are loyal, friction-free, and consistently repeat-purchase at standard prices.
+     - *Profile:* Longest observed tenure (`mean_X1 = 47.5028` months), lowest complaint count (`mean_X2 = 1.9503`), lowest discount share (`mean_X3 = 0.2250`), moderate-to-low historical basket sizes (`mean_X4 = 12.5301`), modest current average order value (`mean_value = 3.5976` hundreds of INR, ~₹360), highest loyalty score (`mean_X5 = 62.1584`), and a low churn rate of `outcome_rate = 0.0186` (1.86%).
+     - *Concrete Action:* Offer automated subscription refills and convenient re-order reminders rather than deep discount promotions, consistent with this cluster's high observed loyalty scores, low complaint frequency, and low reliance on discounted orders.
   2. **Segment B (Size 255): *High-Value Friction-Sensitive Shoppers***
-     - *Profile:* Intermediate tenure (`mean_X1 = 28.6071` months), highest complaint count (`mean_X2 = 6.0706`), moderate discount use (`mean_X3 = 0.4534`), highest historical order value (`mean_X4 = 28.7192`), strong loyalty score (`mean_X5 = 55.0082`), substantial churn rate of `outcome_rate = 0.2353` (23.53%), and the highest current order value by far (`mean_value = 17.1248` hundreds of INR, ~₹1,712).
-     - *Concrete Action:* Implement white-glove, dedicated customer-care routing with automated escalation and rapid compensation for any delivery dispute or transit friction, protecting Flipkart's most lucrative customer segment from avoidable defection.
+     - *Profile:* Intermediate tenure (`mean_X1 = 28.6071` months), highest complaint count (`mean_X2 = 6.0706`), moderate discount share (`mean_X3 = 0.4534`), highest historical order value (`mean_X4 = 28.7192`), moderate-to-high loyalty score (`mean_X5 = 55.0082`), an elevated churn rate of `outcome_rate = 0.2353` (23.53%), and the highest observed current order value (`mean_value = 17.1248` hundreds of INR, ~₹1,712).
+     - *Concrete Action:* Prioritize dedicated customer-care escalation and proactive delivery-issue resolution to address the high complaint frequency observed in this high-spending cluster.
   3. **Segment C (Size 223): *Bargain-Focused / Opportunistic Deal Seekers***
-     - *Profile:* Shortest tenure (`mean_X1 = 14.3892` months), moderate complaints (`mean_X2 = 4.2287`), extreme discount addiction (`mean_X3 = 0.7118`), modest basket sizes (`mean_X4 = 16.5099`), lowest loyalty score (`mean_X5 = 38.5215`), and average current order value of `mean_value = 7.2883`.
-     - *Highest Churn Rate:* **Segment C exhibits the highest churn rate at `outcome_rate = 0.4664` (46.64%)**, indicating that nearly half of this group defects once subsidies end.
-     - *Concrete Action:* Deploy dynamic, margin-capped minimum-spend coupons (e.g., "₹150 off on orders above ₹1,200") to condition regular shopping frequency while safeguarding unit contribution margins.
+     - *Profile:* Shortest tenure (`mean_X1 = 14.3892` months), elevated complaint count (`mean_X2 = 4.2287`), highest discount share (`mean_X3 = 0.7118`), moderate historical basket sizes (`mean_X4 = 16.5099`), lowest loyalty score (`mean_X5 = 38.5215`), and average current order value of `mean_value = 7.2883`.
+     - *Highest Churn Rate:* **Segment C exhibits the highest churn rate at `outcome_rate = 0.4664` (46.64%)**, co-occurring with shorter observed tenures, higher discount reliance, and lower loyalty scores.
+     - *Concrete Action:* Test margin-capped minimum-spend coupons (e.g., "₹150 off on orders above ₹1,200") designed to encourage repeat purchases without relying on unconditioned deep discounts.
 
 - **R3.3 (Hierarchical Linkage Comparison & Dendrogram Cuts):**
   - **Single Linkage (`single_clusters_at_cut = 4`):** The largest merge height gap occurs between merge 2 ($1.4000$) and merge 3 ($2.8000$) with a gap of $1.4000$. Cutting here produces **4 clusters**: `{E1}`, `{E4}`, `{E5}`, and `{E2+E3+E6}`.
@@ -103,9 +103,10 @@ python part4.py
   - *Why they disagree:* Single linkage computes proximity as the minimum distance between any single pair of members; due to "chaining", the presence of a single moderate intermediate connection between E5 and E6 (distance $3.4$) allows all cohorts to merge at very low height (final height $3.4000$), obscuring the deeper macro split and falsely magnifying the early gap between heights $1.4$ and $2.8$. In contrast, complete linkage evaluates cluster compactness by requiring the maximum pairwise distance between all members to remain small; the large dissimilarity between opposing cohorts (e.g., distance between E1 and E2 is $7.9$) creates an enormous final jump from $2.9$ to $7.9$, correctly identifying two coherent, isolated macro clusters `{E1, E4, E5}` and `{E2, E3, E6}`.
 
 - **R3.4 (Principal Component Analysis Interpretation):**
-  - *Drivers of PC1:* The first principal component accounts for over half the total variance (`explained_ratio_1 = 0.5227`, 52.27%) and acts as an opposing polarity index between customer loyalty and platform friction. PC1 is driven positively by customer tenure (`pc1_loading_X1 = 0.5317`) and loyalty score (`pc1_loading_X5 = 0.4418`), and driven negatively by discount order share (`pc1_loading_X3 = -0.5187`) and complaint counts (`pc1_loading_X2 = -0.4100`).
+  - *Standardized Mean Vector:* After standardizing predictors $X_1$ through $X_5$ across all 800 rows using column means and sample standard deviations, the five-feature mean vector is approximately zero ($[0.0000, 0.0000, 0.0000, 0.0000, 0.0000]$ within floating-point precision, max absolute component $\approx 2.16 \times 10^{-15}$), matching Step 1 of Task 3.5 prior to centering and covariance calculation.
+  - *Drivers of PC1:* The first principal component accounts for over half the total variance (`explained_ratio_1 = 0.5227`, 52.27%) and acts as an opposing polarity index between customer loyalty/tenure and discount/complaint intensity. PC1 loads positively on customer tenure (`pc1_loading_X1 = 0.5317`) and loyalty score (`pc1_loading_X5 = 0.4418`), and negatively on discount order share (`pc1_loading_X3 = -0.5187`) and complaint counts (`pc1_loading_X2 = -0.4100`).
   - *Variance Retention:* Exactly **3 components** (`components_for_80pct = 3`) are required to preserve at least 80% of total information, capturing **86.16%** cumulative variance (`cumulative_ratio_3 = 0.8616`).
-  - *Segment PC1 Scores:* The mean first-component projections across the segments are `mean_pc1_segment_A = 1.7773`, `mean_pc1_segment_B = -0.7831`, and `mean_pc1_segment_C = -1.6709`. This ordering cleanly separates the customer clusters along the principal loyalty axis, confirming that Segment A represents established, low-friction loyalists on the positive spectrum, Segment B reflects transitional high-friction accounts, and Segment C represents promo-dependent, high-churn shoppers on the far negative spectrum.
+  - *Segment PC1 Scores:* The mean first-component projections across the segments are `mean_pc1_segment_A = 1.7773`, `mean_pc1_segment_B = -0.7831`, and `mean_pc1_segment_C = -1.6709`. This ordering separates the three clusters along the primary variance axis, placing longer-tenured, higher-loyalty Segment A accounts firmly on the positive side, higher-value/higher-complaint Segment B accounts moderately negative, and high-discount Segment C accounts furthest on the negative end.
 
 ## Part 4 findings
 
@@ -128,8 +129,8 @@ python part4.py
     | `cnn_dense1` | Fully Connected (32 units) + ReLU | 32 | 12,832 | $400 \times 32 + 32 = 12,832$ |
     | `cnn_dense2` | Fully Connected Output (10 category classes) | 10 | 330 | $32 \times 10 + 10 = 330$ |
     | **Total CNN** | **4 Parameterized Layers (`cnn_total`)** | — | **15,734** | $156 + 2,416 + 12,832 + 330 = 15,734$ |
-  - **Model B (RNN) Weight Dimensions & Sequence Invariance:**
-    The transition and projection weight matrices have dimensions:
+  - **Model B (RNN — Customer-Review Topic Classification into 16 Topics) Weight Dimensions & Sequence Invariance:**
+    For sorting customer-review text token sequences into 16 topics, the transition and projection weight matrices have dimensions:
     - $W_{xh}$: shape $128 \times 64$ (8,192 parameters)
     - $W_{hh}$: shape $128 \times 128$ (16,384 parameters)
     - $W_{hy}$: shape $16 \times 128$ (2,048 parameters)
@@ -152,7 +153,7 @@ To maximize commercial returns, we recommend deploying this model at the financi
 
 A key operational limitation is that these findings derive from a single synthetic 70/30 split with 51 holdout churners, requiring longitudinal backtesting before nationwide rollout.
 
-Neither Model A (catalog image sorting) nor Model B (review sentiment modeling) is worth building before this structured tabular model is deployed in production. Tabular transaction signals provide immediate, high-margin retention lift with minimal compute, whereas deep learning architectures add substantial infrastructure complexity without addressing core customer defection drivers.
+Neither Model A (catalog image sorting) nor Model B (customer-review topic classification into 16 topics) is worth building before this structured tabular model is deployed in production. Tabular transaction signals provide immediate, high-margin retention lift with minimal compute, whereas deep learning architectures add substantial infrastructure complexity without addressing core customer defection drivers.
 
 ## Limitations
 
