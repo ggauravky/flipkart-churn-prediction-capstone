@@ -1,10 +1,7 @@
-"""Verification script for Phase 1 dataset validation.
+"""Check that data/records.csv matches the brief: 800 rows, 10 columns,
+170 churners and MD5 c6f249ba693f1ebeed318d6d5e18de23.
 
-Checks:
-1. Exactly 800 data rows
-2. Exactly 10 columns
-3. Exactly 170 records where churned = 1
-4. MD5 hash: c6f249ba693f1ebeed318d6d5e18de23
+Exits with status 1 if any check fails.
 """
 
 import csv
@@ -41,25 +38,22 @@ def verify():
     all_passed = True
 
     print("=" * 60)
-    print("PHASE 1: DATASET VERIFICATION REPORT")
+    print("DATASET VERIFICATION REPORT")
     print("=" * 60)
 
-    # Check 1: Row count
     c1 = actual_rows == EXPECTED_ROWS
     print(f"Check 1 - Data Rows Count:       {actual_rows} (Expected: {EXPECTED_ROWS}) -> {'PASS' if c1 else 'FAIL'}")
     all_passed = all_passed and c1
 
-    # Check 2: Column count
     c2 = actual_cols == EXPECTED_COLS
     print(f"Check 2 - Columns Count:         {actual_cols} (Expected: {EXPECTED_COLS}) -> {'PASS' if c2 else 'FAIL'}")
     all_passed = all_passed and c2
 
-    # Check 3: Positive churn count
     c3 = actual_positives == EXPECTED_POSITIVES
     print(f"Check 3 - Positive Churn Count:  {actual_positives} (Expected: {EXPECTED_POSITIVES}) -> {'PASS' if c3 else 'FAIL'}")
     all_passed = all_passed and c3
 
-    # Check 4: MD5 checksum
+    # The MD5 is taken over raw bytes, so any line-ending change would fail here.
     c4 = actual_md5 == EXPECTED_MD5
     print(f"Check 4 - File MD5 Checksum:     {actual_md5}")
     print(f"                          Target: {EXPECTED_MD5} -> {'PASS' if c4 else 'FAIL'}")

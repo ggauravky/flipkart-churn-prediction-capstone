@@ -1,8 +1,4 @@
-"""Data loading helper for Flipkart E-commerce Decision Intelligence.
-
-This module provides a lightweight, reusable utility to load 'data/records.csv'
-into clean NumPy arrays while preserving exact dataset row order.
-"""
+"""Load data/records.csv into NumPy arrays, keeping the original row order."""
 
 import csv
 import os
@@ -24,17 +20,15 @@ VALUE_NAME = "order_value_inr_hundreds"      # Value: current order value (INR h
 
 
 def load_dataset(filepath=os.path.join("data", "records.csv")):
-    """Load records.csv into structured NumPy arrays and dictionaries.
+    """Load the dataset without shuffling; row order matters for every pinned split.
 
-    Preserves the original row order without shuffling.
-    Returns:
-        dict containing:
-            - 'record_ids': list of string IDs (e.g. ['E0001', ...])
-            - 'X': 2D float64 NumPy array of shape (N, 7) for features X1 to X7
-            - 'y': 1D int64 NumPy array of shape (N,) for target 'churned'
-            - 'value': 1D float64 NumPy array of shape (N,) for 'order_value_inr_hundreds'
-            - individual predictor arrays for direct access (e.g. data['X4'])
-            - 'feature_names': list of predictor column names
+    Returns a dict containing:
+        - 'record_ids': list of string IDs (e.g. ['E0001', ...])
+        - 'X': 2D float64 NumPy array of shape (N, 7) for features X1 to X7
+        - 'y': 1D int64 NumPy array of shape (N,) for target 'churned'
+        - 'value': 1D float64 NumPy array of shape (N,) for 'order_value_inr_hundreds'
+        - single columns by X-number or name (e.g. data['X4'])
+        - 'feature_names': list of predictor column names
     """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Dataset file not found at: {filepath}. Run generate_data.py first.")
@@ -46,17 +40,13 @@ def load_dataset(filepath=os.path.join("data", "records.csv")):
 
     record_ids = [r[0] for r in rows]
 
-    # Convert numeric columns to NumPy arrays
-    # Columns:
-    # 0: record_id
-    # 1..7: X1..X7
-    # 8: churned (outcome)
-    # 9: order_value_inr_hundreds (value)
+    # CSV columns: 0 record_id, 1-7 X1..X7, 8 churned, 9 order_value_inr_hundreds.
+    # Dropping record_id shifts each index down by one below.
     raw_data = np.array([[float(val) for val in r[1:]] for r in rows], dtype=np.float64)
 
-    X = raw_data[:, 0:7]                     # Features X1 to X7
-    y = raw_data[:, 7].astype(np.int64)      # Outcome / target (churned)
-    value = raw_data[:, 8]                   # Continuous value column
+    X = raw_data[:, 0:7]
+    y = raw_data[:, 7].astype(np.int64)
+    value = raw_data[:, 8]
 
     data = {
         "record_ids": record_ids,
@@ -65,7 +55,7 @@ def load_dataset(filepath=os.path.join("data", "records.csv")):
         "value": value,
         "feature_names": FEATURE_NAMES,
         "header": header,
-        # Direct convenience accessors for individual features
+        # Single columns, by X-number and by name
         "X1": X[:, 0],
         "X2": X[:, 1],
         "X3": X[:, 2],
@@ -88,9 +78,9 @@ def load_dataset(filepath=os.path.join("data", "records.csv")):
 
 
 if __name__ == "__main__":
-    # Quick self-test of the data loader
+    # Quick self-check: python data_loader.py
     dataset = load_dataset()
-    print(f"Loaded successfully!")
+    print("Loaded successfully!")
     print(f"Total records: {len(dataset['record_ids'])}")
     print(f"X shape: {dataset['X'].shape}")
     print(f"y shape: {dataset['y'].shape}, positives: {np.sum(dataset['y'])}")

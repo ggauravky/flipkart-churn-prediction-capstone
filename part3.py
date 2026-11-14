@@ -1,34 +1,17 @@
-"""Part 3: Segmentation and dimensionality reduction.
+"""Part 3: Segment customers with K-means, compare hierarchical linkages, and run PCA.
 
-Flipkart E-commerce Decision Intelligence Capstone.
-This script performs:
-1. K-means clustering from scratch on features X1..X5 across all 800 rows for K in {2, 3, 4, 5, 6}.
-2. Pinned starting row selection, tie-breaking, and WCSS computation.
-3. Elbow K determination via the official drop threshold formula.
-4. Profiling the three segments (A, B, C ordered by ascending mean of X3) -> outputs/part3_segments.csv.
-5. Agglomerative hierarchical clustering from scratch (single, complete, average) on the 6-cohort table -> outputs/part3_hierarchical.csv.
-6. Principal Component Analysis (PCA) via the seven-step manual linear algebra procedure.
-
-Outputs written to:
-- outputs/part3_results.txt
-- outputs/part3_segments.csv
-- outputs/part3_hierarchical.csv
+Writes outputs/part3_results.txt, part3_segments.csv and part3_hierarchical.csv.
 """
 
 import csv
-import math
 import os
 import numpy as np
 import data_loader
 
 
 def format_value(val):
-    """Format a value according to the capstone specification:
-    - booleans as yes / no (checked before int since bool subclasses int)
-    - integers as plain integers
-    - 4 decimal places for floating-point numbers
-    - strings as given
-    """
+    """Format a result as the brief requires: yes/no, plain integer, or 4-decimal float."""
+    # bool must be checked before int, because bool is a subclass of int.
     if isinstance(val, (bool, np.bool_)):
         return "yes" if val else "no"
     elif isinstance(val, (int, np.integer)):
@@ -40,11 +23,12 @@ def format_value(val):
 
 
 def run_kmeans(X_std, K):
-    """Run K-means with exact pinned rules:
-    - Starting centroids: rows at indices 0, floor(800/K), 2*floor(800/K), ...
-    - Squared Euclidean distance assignment with lower-index tie-breaking.
-    - Centroids updated to mean of cluster members (empty clusters unchanged).
-    - Stops at first pass where no row changes cluster.
+    """Run K-means with the brief's pinned rules and return (wcss, labels, centroids, passes).
+
+    - Start from rows 0, floor(n/K), 2*floor(n/K), ... so every run is reproducible.
+    - Assign each row to its nearest centroid by squared Euclidean distance.
+    - Move each centroid to its members' mean; an empty cluster keeps its centroid.
+    - Stop at the first pass in which no row changes cluster (no iteration cap).
     """
     n_samples = len(X_std)
     start_indices = [j * (n_samples // K) for j in range(K)]
@@ -56,15 +40,14 @@ def run_kmeans(X_std, K):
         passes += 1
         # dists shape: (n_samples, K)
         dists = np.sum((X_std[:, np.newaxis, :] - centroids[np.newaxis, :, :]) ** 2, axis=2)
+        # argmin returns the first minimum, so ties go to the lower-numbered centroid.
         new_assignments = np.argmin(dists, axis=1)
 
-        # Convergence: stop when no row changes assignment
         if np.array_equal(new_assignments, assignments):
             break
 
         assignments = new_assignments
 
-        # Update centroids: mean of assigned members
         for k in range(K):
             members = X_std[assignments == k]
             if len(members) > 0:
@@ -76,10 +59,11 @@ def run_kmeans(X_std, K):
 
 
 def run_hierarchical_clustering(dist_matrix, labels):
-    """Agglomerative clustering from scratch for single, complete, and average linkage.
+    """Agglomerative clustering with single, complete and average linkage.
 
-    Merges clusters with smallest linkage distance at each step.
-    Computes cut position at the largest consecutive gap in merge heights.
+    Linkage distance between two clusters is the min (single), max (complete)
+    or mean (average) of all member-to-member distances. Returns every merge
+    and, per linkage, the number of clusters left at the dendrogram cut.
     """
     all_merges = []
     clusters_at_cut = {}
@@ -92,7 +76,7 @@ def run_hierarchical_clustering(dist_matrix, labels):
             min_dist = float("inf")
             best_pair = None
 
-            # Find closest pair of clusters under current linkage definition
+            # Find the closest pair of clusters under this linkage rule.
             for i in range(len(clusters)):
                 for j in range(i + 1, len(clusters)):
                     c1, c2 = clusters[i], clusters[j]
@@ -112,7 +96,7 @@ def run_hierarchical_clustering(dist_matrix, labels):
             i, j = best_pair
             c1, c2 = clusters[i], clusters[j]
 
-            # cluster_a is cluster with the smaller minimum member index
+            # The brief pins cluster_a as the cluster with the smaller lowest member.
             if min(c1) < min(c2):
                 ca, cb = c1, c2
             else:
@@ -130,16 +114,15 @@ def run_hierarchical_clustering(dist_matrix, labels):
                 "new_cluster": sorted(c1 + c2)
             })
 
-            # Form new cluster list
             new_clusters = [clusters[k] for k in range(len(clusters)) if k != i and k != j]
             new_clusters.append(sorted(c1 + c2))
             clusters = new_clusters
 
-        # Dendrogram cut: largest gap among consecutive merge heights
+        # Cut the dendrogram in the largest gap between consecutive merge heights.
+        # gaps[k] lies between merge k+1 and merge k+2, so k+1 merges sit below the cut.
         heights = [m["height"] for m in merges]
         gaps = [heights[k + 1] - heights[k] for k in range(len(heights) - 1)]
-        max_gap_idx = int(np.argmax(gaps))  # gap between merge (idx+1) and merge (idx+2)
-        # Number of clusters is 6 minus number of merges below the cut
+        max_gap_idx = int(np.argmax(gaps))
         merges_below_cut = max_gap_idx + 1
         num_clusters = len(labels) - merges_below_cut
         clusters_at_cut[linkage] = num_clusters
@@ -150,23 +133,20 @@ def run_hierarchical_clustering(dist_matrix, labels):
 
 
 def run_part3():
-    # Load dataset across all 800 rows
     dataset = data_loader.load_dataset()
-    X_orig = dataset["X"][:, :5]  # Continuous predictors X1..X5
-    y = dataset["y"]              # Outcome (churned)
-    val = dataset["value"]        # Order value in hundreds of INR
+    X_orig = dataset["X"][:, :5]  # continuous predictors X1..X5
+    y = dataset["y"]
+    val = dataset["value"]
     n_samples = len(X_orig)
 
-    # Standardise X1..X5 over all 800 rows using sample SD (ddof=1)
+    # Part 3 is unsupervised, so all 800 rows are standardised together (sample SD).
     mean_X = np.mean(X_orig, axis=0)
     sd_X = np.std(X_orig, axis=0, ddof=1)
     X_std = (X_orig - mean_X) / sd_X
 
     results = {}
 
-    # =========================================================================
-    # Task 3.1: K-means from scratch for K = 2, 3, 4, 5, 6
-    # =========================================================================
+    # Task 3.1 — K-means from scratch for K = 2, 3, 4, 5, 6
     wcss_results = {}
     assignments_k3 = None
 
@@ -177,9 +157,7 @@ def run_part3():
         if K == 3:
             assignments_k3 = assign
 
-    # =========================================================================
-    # Task 3.2: Choose K with the elbow
-    # =========================================================================
+    # Task 3.2 — Choose K with the elbow
     # Smallest K in {3, 4, 5} such that WCSS(K) - WCSS(K+1) < 0.5 * (WCSS(K-1) - WCSS(K))
     elbow_k = None
     for K_cand in [3, 4, 5]:
@@ -191,10 +169,9 @@ def run_part3():
 
     results["elbow_k"] = elbow_k
 
-    # =========================================================================
-    # Task 3.3: Profile the K = 3 segments
-    # =========================================================================
-    # Order the three clusters by ascending mean of original X3 (discount_order_share)
+    # Task 3.3 — Profile the K = 3 segments
+    # Cluster numbers are arbitrary, so label them A, B, C by ascending mean X3
+    # (discount share, original units) to get a stable naming.
     cluster_x3_means = []
     for k in range(3):
         mask = (assignments_k3 == k)
@@ -242,9 +219,7 @@ def run_part3():
         writer.writerows(segments_rows)
     print(f"Generated {segments_csv_path} with {len(segments_rows)} rows.")
 
-    # =========================================================================
-    # Task 3.4: Hierarchical clustering on the supplied table
-    # =========================================================================
+    # Task 3.4 — Hierarchical clustering on the supplied table
     cohort_labels = ["E1", "E2", "E3", "E4", "E5", "E6"]
     dist_table = np.array([
         [0.0, 7.9, 7.4, 2.9, 2.9, 6.1],
@@ -275,34 +250,33 @@ def run_part3():
     results["complete_clusters_at_cut"] = cuts["complete"]
     results["average_clusters_at_cut"] = cuts["average"]
 
-    # =========================================================================
-    # Task 3.5: PCA by the seven steps
-    # =========================================================================
-    # Step 1: Mean vector (all zeros after standardising)
-    # Step 2: Centre the data
+    # Task 3.5 — PCA by the seven steps
+    # Step 1: mean vector - already zero (to floating-point precision) after standardising.
+    # Step 2: centre anyway, so the steps match the brief exactly.
     X_c = X_std - np.mean(X_std, axis=0)
 
-    # Step 3: Covariance matrix S = (1 / (n - 1)) X^T X
+    # Step 3: covariance matrix S = (1 / (n - 1)) X^T X
     S = (1.0 / (n_samples - 1)) * (X_c.T @ X_c)
 
-    # Step 4: Eigenvalues and eigenvectors via numpy.linalg.eigh
+    # Step 4: eigh is meant for symmetric matrices like S (the one library routine allowed).
     eigenvalues, eigenvectors = np.linalg.eigh(S)
 
-    # Step 5: Sort by eigenvalue, largest first
+    # Step 5: eigh returns ascending order, so reverse to put the largest first.
     sort_idx = np.argsort(eigenvalues)[::-1]
     eigenvalues = eigenvalues[sort_idx]
     eigenvectors = eigenvectors[:, sort_idx]
 
-    # Sign convention: flip each eigenvector so entry of largest absolute value is positive
+    # An eigenvector's sign is arbitrary. The brief pins it: flip each one so that
+    # its largest-magnitude entry is positive, making loadings reproducible.
     for j in range(eigenvectors.shape[1]):
         max_idx = np.argmax(np.abs(eigenvectors[:, j]))
         if eigenvectors[max_idx, j] < 0:
             eigenvectors[:, j] = -eigenvectors[:, j]
 
-    # Step 6: Keep top two eigenvectors
+    # Step 6: keep the top two eigenvectors
     W = eigenvectors[:, :2]
 
-    # Step 7: Project Z = X_c @ W
+    # Step 7: project Z = X_c W
     Z = X_c @ W
 
     eigenvalue_sum = float(np.sum(eigenvalues))
@@ -342,13 +316,11 @@ def run_part3():
         mask = segment_masks[seg_label]
         results[f"mean_pc1_segment_{seg_label}"] = float(np.mean(pc1_scores[mask]))
 
-    # =========================================================================
     # Write outputs/part3_results.txt
-    # =========================================================================
     results_path = os.path.join("outputs", "part3_results.txt")
     with open(results_path, "w", newline="\n", encoding="utf-8") as f:
-        for key, val in results.items():
-            f.write(f"{key} = {format_value(val)}\n")
+        for key, value in results.items():
+            f.write(f"{key} = {format_value(value)}\n")
 
     print(f"Generated {results_path} with {len(results)} keys.")
     return results

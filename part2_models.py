@@ -1,13 +1,8 @@
-"""Shared models and preprocessing helper for classification (Parts 2 and 4).
+"""Split, logistic regression, KNN and metrics shared by Parts 2 and 4.
 
-This module provides reusable routines for:
-1. Stratified 70/30 split and standardization on training statistics.
-2. Logistic regression model training, prediction, and binary cross-entropy loss.
-3. K-Nearest Neighbours model prediction and evaluation metrics.
-4. Financial cost evaluation for threshold tuning.
+Importing this module does not run any Part.
 """
 
-import math
 import numpy as np
 import data_loader
 
@@ -53,7 +48,7 @@ def get_stratified_split():
     X_test = X[test_indices]
     y_test = y[test_indices]
 
-    # Preprocessing: standardise using training set statistics only (ddof=1)
+    # Use training statistics for both sets to prevent test-data leakage.
     train_mean = np.mean(X_train, axis=0)
     train_sd = np.std(X_train, axis=0, ddof=1)
 
@@ -75,7 +70,9 @@ def get_stratified_split():
 
 
 def sigmoid(z):
-    """Numerically stable sigmoid activation function."""
+    """Numerically stable sigmoid, 1 / (1 + e^-z), for a scalar or an array."""
+    # For very negative z, e^-z overflows; there the equivalent form
+    # e^z / (1 + e^z) is used instead. Both branches give the same value.
     z_arr = np.asarray(z, dtype=np.float64)
     safe = z_arr >= -500.0
     z_safe = np.where(safe, z_arr, 0.0)
@@ -86,25 +83,26 @@ def sigmoid(z):
 
 
 def bce_loss(y_true, y_prob):
-    """Average binary cross-entropy loss with epsilon clipping."""
+    """Mean binary cross-entropy: -(1/n) sum[y ln p + (1 - y) ln(1 - p)].
+
+    Probabilities are clipped away from 0 and 1 so that ln() stays finite.
+    """
     eps = 1e-15
     p = np.clip(y_prob, eps, 1.0 - eps)
     return float(-np.mean(y_true * np.log(p) + (1.0 - y_true) * np.log(1.0 - p)))
 
 
 def train_logistic_regression(X_std, y, eta=0.1, epochs=1000):
-    """Train logistic regression from scratch via batch gradient descent.
+    """Train logistic regression by batch gradient descent, starting from zero.
 
-    Weights and bias initialize to zero.
-    Returns:
-        (w, b, checkpoint_losses)
+    Returns (w, b, checkpoint_losses), where checkpoint_losses maps an update
+    count (0, 1, 10, 100, 200, 500, 1000) to the training BCE at that point.
     """
     n_samples, n_features = X_std.shape
     w = np.zeros(n_features, dtype=np.float64)
     b = 0.0
 
     checkpoint_losses = {}
-    # Epoch 0 loss
     prob_0 = sigmoid(X_std @ w + b)
     checkpoint_losses[0] = bce_loss(y, prob_0)
 
@@ -113,6 +111,7 @@ def train_logistic_regression(X_std, y, eta=0.1, epochs=1000):
         p = sigmoid(z)
         error = p - y
 
+        # BCE gradients: dL/dw = (1/n) X^T (p - y), dL/db = (1/n) sum(p - y)
         grad_w = (1.0 / n_samples) * (X_std.T @ error)
         grad_b = (1.0 / n_samples) * np.sum(error)
 
@@ -132,25 +131,21 @@ def predict_logistic_prob(X_std, w, b):
 
 
 def predict_knn(ref_X_std, ref_y, query_X_std, K):
-    """K-Nearest Neighbours classification on standardized features.
+    """K-nearest-neighbour classification on standardised features.
 
-    Distances are Euclidean.
-    Tied distances broken by original file-order position (stable sort).
-    Query predicted positive when positive count >= (K + 1) // 2.
-
-    Returns:
-        binary_predictions: 1D array of 0 or 1
-        pos_shares: 1D array of positive neighbor shares (k_pos / K)
+    A query is positive when at least (K + 1) // 2 of its K nearest reference
+    rows are positive. Returns (predictions, positive_shares), where the share
+    k_pos / K serves as the KNN "probability" in Part 4's soft vote.
     """
-    # dists matrix shape: (N_query, N_ref)
+    # Euclidean distances, shape (n_query, n_ref)
     dists = np.sqrt(np.sum((query_X_std[:, np.newaxis, :] - ref_X_std[np.newaxis, :, :]) ** 2, axis=2))
-    
+
     preds = []
     pos_shares = []
     threshold = (K + 1) // 2
 
     for i in range(len(query_X_std)):
-        # Stable sort preserves reference row index in file order for ties
+        # Stable sort: equal distances keep file order, as the brief pins.
         ranked_idx = np.argsort(dists[i], kind="stable")
         top_k_labels = ref_y[ranked_idx[:K]]
         k_pos = int(np.sum(top_k_labels == 1))
@@ -161,7 +156,7 @@ def predict_knn(ref_X_std, ref_y, query_X_std, K):
 
 
 def evaluate_confusion_metrics(y_true, y_pred):
-    """Compute confusion matrix cells and evaluation metrics from scratch."""
+    """Confusion-matrix cells and derived metrics; any 0/0 ratio is reported as 0."""
     tp = int(np.sum((y_pred == 1) & (y_true == 1)))
     fp = int(np.sum((y_pred == 1) & (y_true == 0)))
     tn = int(np.sum((y_pred == 0) & (y_true == 0)))
@@ -189,7 +184,7 @@ def evaluate_confusion_metrics(y_true, y_pred):
 
 
 def compute_financial_cost(y_true, y_prob, tau, cost_fp=50, cost_fn=400):
-    """Calculate the operational financial cost of predictions at threshold tau."""
+    """Cost in INR at threshold tau: 50 per false alarm plus 400 per missed churner."""
     y_pred = (y_prob >= tau).astype(int)
     fp = int(np.sum((y_pred == 1) & (y_true == 0)))
     fn = int(np.sum((y_pred == 0) & (y_true == 1)))
@@ -198,11 +193,12 @@ def compute_financial_cost(y_true, y_prob, tau, cost_fp=50, cost_fn=400):
 
 
 def find_best_knn_k(X_train_std, y_train, odd_ks=None):
-    """Select the optimal K for KNN via 5-fold cross-validation on training rows.
+    """Choose K by 5-fold cross-validation on the training rows only.
 
-    The fold of a training row is its 0-based position in the training set
-    (in file order) modulo 5. Scores are mean F1 over the 5 folds.
-    Ties are broken by choosing the smaller K.
+    A row's fold is its 0-based position in the training set modulo 5. Each K
+    is scored by its mean F1 over the five held-out folds. Features are not
+    re-standardised inside a fold, as the brief requires.
+    Returns (best_k, [(K, mean_f1), ...]).
     """
     if odd_ks is None:
         odd_ks = list(range(1, 23, 2))  # 1, 3, 5, ..., 21
@@ -231,6 +227,7 @@ def find_best_knn_k(X_train_std, y_train, odd_ks=None):
         mean_f1 = float(np.mean(fold_f1_scores))
         cv_records.append((K, mean_f1))
 
+        # K is tried in ascending order, so strict ">" keeps the smaller K on a tie.
         if mean_f1 > best_mean_f1:
             best_mean_f1 = mean_f1
             best_k = K
